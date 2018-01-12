@@ -28,7 +28,7 @@ def nextcloud_auth(site, username, password):
         # extract the CSRF token
         # the token is usually near the top, so we only need read the first few lines
         for l in R.iter_lines(decode_unicode=True): # XXX decode_unicode is a misnomer; it should be decode, or maybe text=True
-            r = re.search(r'<head data-requesttoken="(.*)">', l)
+            r = re.search(r'<head data-requesttoken="(.*?)">', l)
             if r:
                 requesttoken = r.groups()[0]
                 break
