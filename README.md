@@ -38,7 +38,10 @@ authentication = "external"
 external_auth_command = "/usr/local/bin/nextcloud_auth https://yournextcloudsite.com"
 ```
 
-Unfortunately, currently [mod_auth_external](https://hg.prosody.im/prosody-modules/file/tip/mod_auth_external/mod_auth_external.lua) assumes `external_auth_command` is just your program; it cannot take arguments. Rather than provide a config file, the solution I recommend is:
+Unfortunately, currently [mod_auth_external](https://hg.prosody.im/prosody-modules/file/tip/mod_auth_external/mod_auth_external.lua)
+assumes `external_auth_command` is just your program; it [cannot take arguments](https://prosody.im/issues/841).
+There's two solutions: 1) apply the patch in [#841](https://prosody.im/issues/841) and go advocate for it to be applied globally.
+2) Write a wrapper script:
 
 ```
 mkdir -p /opt
