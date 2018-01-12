@@ -19,6 +19,9 @@ def nextcloud_auth(site, username, password):
     
     # Nextcloud is heavily protected from all the web cruft with CSRF checking
     # so we need to pretend to be enough of a web browser to play along
+    # 
+    # TODO: We might be able to extract more efficiency by caching the session / CSRF token, and only refreshing it if challenged
+    #       This whole thing could be an interactive coroutine (`next_request = yield result`) even. But that's for another day.
     S = requests.Session()
     
     with S.get("%s/login" % (site,), stream=True) as R:
