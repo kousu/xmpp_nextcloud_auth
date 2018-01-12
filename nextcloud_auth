@@ -1,0 +1,64 @@
+#!/usr/bin/python3
+"""
+This is a prosody mod_auth_external plugin to auth against a nextcloud install
+"""
+
+import sys
+import requests
+import re
+
+
+def nextcloud_auth(site, username, password):
+    """
+    site: the base URL of a Nextcloud / Owncloud install
+    username: the username to try to login as
+    password: the password to login as
+    
+    returns: whether the user could successfully log in, as a boolean
+    """
+    
+    # Nextcloud is heavily protected from all the web cruft with CSRF checking
+    # so we need to pretend to be enough of a web browser to play along
+    S = requests.Session()
+    
+    with S.get("%s/login" % (site,), stream=True) as R:
+        # extract the CSRF token
+        # the token is usually near the top, so we only need read the first few lines
+        for l in R.iter_lines(decode_unicode=True): # XXX decode_unicode is a misnomer; it should be decode, or maybe text=True
+            r = re.search(r'<head data-requesttoken="(.*)">', l)
+            if r:
+                requesttoken = r.groups()[0]
+                break
+        else:
+            raise RuntimeError("Could not find CSRF token in '%s/login'" % (site,))
+            requesttoken = None
+
+    # The CSRF token is submitted *as a custom header*
+    R = S.post(site + "/apps/ojsxc/settings", headers={"requesttoken": requesttoken}, data={"username": username, "password": password})
+    # normalize the result to a boolean; if we don't understand the result, return False
+    return {"success": True, "noauth": False}.get(R.json().get('result', None), False)
+
+def main(site):
+    for line in sys.stdin:
+        line = line.rstrip("\n") # strip trailing newline
+        try:
+            cmd, line = line.split(":",1) #XXX assumption: every command will have arguments, or if not, at least a : in it
+            if cmd == "auth":
+                username, domain, password = line.split(":",2)
+                print(int(nextcloud_auth(site, username, password)))
+            elif cmd == "isuser":
+                username, domain = line.split(":",1)
+                print("1") # XXX unimplemented: just pretend everyone is a valid user
+            elif cmd == "setpass":
+                #username, domain, password = line.split(":",2)
+                print("0") # XXX unimplemented: we can't change the password from here so don't bother
+            else:
+                # "Your script must respond with “0” for anything it doesn’t understand.
+                print("0")
+        except:
+            # "Your script must respond with “0” for anything it doesn’t understand.
+            print("0")
+
+if __name__ == '__main__':
+    main(sys.argv[1])
+    #print(nextcloud_auth(*sys.argv[1:]))
