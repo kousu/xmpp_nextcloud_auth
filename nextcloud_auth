@@ -1,12 +1,17 @@
 #!/usr/bin/python3
 """
 This is a prosody mod_auth_external plugin to auth against a nextcloud install
+
+Tip: if you run into [ratelimiting](https://nextcloud.com/blog/security-in-nextcloud-12-bruteforce-protection-and-rate-limiting-for-developers/)
+while testing this do
+# psql nextcloud nextcloud
+>> select * from oc_bruteforce_attempts;
+>> delete from oc_bruteforce_attempts where ip = 'your_ip_address';
 """
 
 import sys
 import requests
 import re
-
 
 def nextcloud_auth(site, username, password):
     """
@@ -36,10 +41,16 @@ def nextcloud_auth(site, username, password):
             raise RuntimeError("Could not find CSRF token in '%s/login'" % (site,))
             requesttoken = None
 
-    # The CSRF token is submitted *as a custom header*
-    R = S.post(site + "/apps/ojsxc/settings", headers={"requesttoken": requesttoken}, data={"username": username, "password": password})
-    # normalize the result to a boolean; if we don't understand the result, return False
-    return {"success": True, "noauth": False}.get(R.json().get('result', None), False)
+    # When oJSXC is installed, the CSRF token is submitted *as a custom header*
+    #R = S.post(site + "/apps/ojsxc/settings", headers={"requesttoken": requesttoken}, data={"username": username, "password": password})
+    # normalize the JSON result to a boolean; if we don't understand the result, return False
+    #return {"success": True, "noauth": False}.get(R.json().get('result', None), False)
+
+    with S.post(site + "/login", data={"user": username, "password": password, "requesttoken": requesttoken}, allow_redirects=False, stream=False) as R:
+        # -> if we go to /login again, we failed; if we go to /apps/files we succeeded. except, what if /apps/files isn't the app we're sent to? can you disable the files app?
+        if R.headers['Location'] == site + "/apps/files/": # XXXX this is dubious we should use urlparse.
+            return True
+        return False
 
 def main(site):
     for line in sys.stdin:
