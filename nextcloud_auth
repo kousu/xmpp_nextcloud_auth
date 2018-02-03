@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 """
 This is a prosody mod_auth_external plugin to auth against a nextcloud install
 
@@ -10,8 +10,15 @@ while testing this do
 """
 
 import sys
-import requests
-import re
+import base64
+import json
+
+try:
+    # python3
+    import urllib.request as urllib
+except ImportError:
+    # python2
+    import urllib2 as urllib
 
 def nextcloud_auth(site, username, password):
     """
@@ -22,35 +29,29 @@ def nextcloud_auth(site, username, password):
     returns: whether the user could successfully log in, as a boolean
     """
     
-    # Nextcloud is heavily protected from all the web cruft with CSRF checking
-    # so we need to pretend to be enough of a web browser to play along
-    # 
-    # TODO: We might be able to extract more efficiency by caching the session / CSRF token, and only refreshing it if challenged
-    #       This whole thing could be an interactive coroutine (`next_request = yield result`) even. But that's for another day.
-    S = requests.Session()
+    req = urllib.Request("%s/ocs/v1.php/cloud/users/%s?format=json" % (site,username))
     
-    with S.get("%s/login" % (site,), stream=True) as R:
-        # extract the CSRF token
-        # the token is usually near the top, so we only need read the first few lines
-        for l in R.iter_lines(decode_unicode=True): # XXX decode_unicode is a misnomer; it should be decode, or maybe text=True
-            r = re.search(r'<head data-requesttoken="(.*?)">', l)
-            if r:
-                requesttoken = r.groups()[0]
-                break
-        else:
-            raise RuntimeError("Could not find CSRF token in '%s/login'" % (site,))
-            requesttoken = None
+    # build the authentication header
+    try:
+        # python2
+        authstring = base64.b64encode('%s:%s' % (username, password))
+    except TypeError:
+        # python3
+        base64string = base64.b64encode(bytes('%s:%s' % (username, password), 'ascii'))
+        authstring = base64string.decode('utf-8')
 
-    # When oJSXC is installed, the CSRF token is submitted *as a custom header*
-    #R = S.post(site + "/apps/ojsxc/settings", headers={"requesttoken": requesttoken}, data={"username": username, "password": password})
-    # normalize the JSON result to a boolean; if we don't understand the result, return False
-    #return {"success": True, "noauth": False}.get(R.json().get('result', None), False)
+    req.add_header("Authorization", "Basic %s" % authstring)
+    req.add_header("OCS-APIRequest", "true")
 
-    with S.post(site + "/login", data={"user": username, "password": password, "requesttoken": requesttoken}, allow_redirects=False, stream=False) as R:
-        # -> if we go to /login again, we failed; if we go to /apps/files we succeeded. except, what if /apps/files isn't the app we're sent to? can you disable the files app?
-        if R.headers['Location'] == site + "/apps/files/": # XXXX this is dubious we should use urlparse.
-            return True
+    try:
+        resp = urllib.urlopen(req)
+    except:
         return False
+
+    data = json.load(resp)
+    if data['ocs']['meta']['status'] == 'ok':
+        return True
+    return False
 
 def main(site):
     for line in sys.stdin:
@@ -67,10 +68,10 @@ def main(site):
                 #username, domain, password = line.split(":",2)
                 print("0") # XXX unimplemented: we can't change the password from here so don't bother
             else:
-                # "Your script must respond with “0” for anything it doesn’t understand.
+                # "Your script must respond with "0" for anything it doesn't understand.
                 print("0")
         except:
-            # "Your script must respond with “0” for anything it doesn’t understand.
+            # "Your script must respond with "0" for anything it doesn't understand.
             print("0")
 
 if __name__ == '__main__':
