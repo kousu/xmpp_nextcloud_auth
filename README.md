@@ -20,7 +20,8 @@ This would mean doing something like
 # hg clone https://hg.prosody.im/prosody-modules/ prosody-modules
 
 # then insert this into /etc/prosody/prosody.cfg.lua:
-plugin_paths = {"/usr/lib/prosody/community-modules"}                                                                                                                                             ```
+plugin_paths = {"/usr/lib/prosody/community-modules"}
+```
 
 That done, install this script to your system.
 ```
